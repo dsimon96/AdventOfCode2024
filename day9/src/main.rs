@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, io::stdin};
+use std::{collections::VecDeque, io::stdin, iter};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -17,6 +17,7 @@ struct Args {
 
 type BlockId = usize;
 
+#[derive(Debug)]
 struct Run {
     id: Option<BlockId>,
     len: usize,
@@ -103,6 +104,62 @@ impl Iterator for P1Iterator {
     }
 }
 
+struct P2 {
+    compacted: Vec<Run>,
+}
+
+impl P2 {
+    fn compact(mut runs: VecDeque<Run>) -> Self {
+        let mut compacted = Vec::new();
+
+        while let Some(run) = runs.pop_front() {
+            if run.id.is_some() {
+                compacted.push(run)
+            } else {
+                // find the rightmost file which can be moved, if one exists
+                let mut tmp = Vec::new();
+                let to_move = loop {
+                    let Some(rightmost) = runs.pop_back() else {
+                        break None;
+                    };
+                    if rightmost.id.is_some() && rightmost.len <= run.len {
+                        break Some(rightmost);
+                    }
+                    tmp.push(rightmost);
+                };
+
+                if let Some(moved) = to_move {
+                    let moved_len = moved.len;
+                    compacted.push(moved);
+                    if moved_len < run.len {
+                        runs.push_front(Run {
+                            id: None,
+                            len: run.len - moved_len,
+                        })
+                    }
+                    // leave empty space where the run was moved from
+                    runs.push_back(Run {
+                        id: None,
+                        len: moved_len,
+                    });
+                } else {
+                    compacted.push(run);
+                }
+                // replace the elements removed from the end of the queue
+                runs.extend(tmp.into_iter().rev());
+            }
+        }
+
+        P2 { compacted }
+    }
+
+    fn iter<'a>(&'a self) -> impl Iterator<Item = Option<BlockId>> + 'a {
+        self.compacted
+            .iter()
+            .flat_map(|run| iter::repeat_n(run.id, run.len))
+    }
+}
+
 fn checksum(it: impl Iterator<Item = Option<BlockId>>) -> usize {
     it.enumerate()
         .map(|(i, id)| i * id.unwrap_or_default())
@@ -116,7 +173,7 @@ fn main() -> Result<()> {
 
     match args.part {
         Part::P1 => println!("{}", checksum(P1Iterator::new(runs))),
-        Part::P2 => todo!(),
+        Part::P2 => println!("{}", checksum(P2::compact(runs).iter())),
     }
 
     Ok(())
