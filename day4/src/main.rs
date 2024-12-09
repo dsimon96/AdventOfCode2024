@@ -65,7 +65,7 @@ fn main() -> Result<()> {
                 }
             }
 
-            println!("{}", total)
+            println!("{total}");
         }
         Part::P2 => {
             const FORWARD: (char, char) = ('M', 'S');
@@ -89,7 +89,7 @@ fn main() -> Result<()> {
                 }
             }
 
-            println!("{}", total)
+            println!("{total}");
         }
     }
 

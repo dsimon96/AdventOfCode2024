@@ -26,13 +26,13 @@ fn parse_lists(inp: impl BufRead) -> Result<(Vec<u64>, Vec<u64>)> {
 }
 
 fn total_distance(mut l: Vec<u64>, mut r: Vec<u64>) -> u64 {
-    l.sort();
-    r.sort();
+    l.sort_unstable();
+    r.sort_unstable();
 
     l.iter().zip(r.iter()).map(|(&l, &r)| l.abs_diff(r)).sum()
 }
 
-fn freq_map(v: &Vec<u64>) -> HashMap<u64, u64> {
+fn freq_map(v: &[u64]) -> HashMap<u64, u64> {
     let mut res = HashMap::new();
     for &elem in v {
         *res.entry(elem).or_default() += 1;
@@ -41,7 +41,7 @@ fn freq_map(v: &Vec<u64>) -> HashMap<u64, u64> {
     res
 }
 
-fn similarity_score(l: &Vec<u64>, r: &Vec<u64>) -> u64 {
+fn similarity_score(l: &[u64], r: &[u64]) -> u64 {
     let right_freqs = freq_map(r);
 
     l.iter()

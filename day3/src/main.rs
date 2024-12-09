@@ -4,9 +4,10 @@ use nom::{
     bytes::complete::tag,
     character::complete::{anychar, char, digit1},
     combinator::map_res,
+    error::Error,
     multi::{many0, many_till},
     sequence::separated_pair,
-    IResult,
+    Err, IResult,
 };
 use std::io::{read_to_string, stdin};
 
@@ -63,7 +64,7 @@ fn interpret(ops: &Vec<Operation>) -> u64 {
             }
             Operation::Mul(x, y) => {
                 if enabled {
-                    sum += x * y
+                    sum += x * y;
                 }
             }
         }
@@ -74,7 +75,7 @@ fn interpret(ops: &Vec<Operation>) -> u64 {
 
 fn main() -> Result<()> {
     let s = read_to_string(stdin())?;
-    let (_, operations) = operations(&s).map_err(|e| e.to_owned())?;
+    let (_, operations) = operations(&s).map_err(Err::<Error<&str>>::to_owned)?;
 
     println!(
         "{}",

@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, io::stdin, iter};
+use std::{cmp::Ordering, collections::VecDeque, io::stdin, iter};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -41,7 +41,7 @@ struct P1Iterator {
     remaining_runs: VecDeque<Run>,
 }
 
-fn p1_compact(runs: VecDeque<Run>) -> P1Iterator {
+const fn p1_compact(runs: VecDeque<Run>) -> P1Iterator {
     P1Iterator {
         remaining_runs: runs,
     }
@@ -51,34 +51,34 @@ impl Iterator for P1Iterator {
     type Item = Run;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Some(first) = self.remaining_runs.pop_front() else {
-            return None;
-        };
+        let first = self.remaining_runs.pop_front()?;
         if first.id.is_some() {
             Some(first)
         } else {
             // fill empty blocks from the rightmost non-empty run
             let fill_from = loop {
-                let Some(rightmost) = self.remaining_runs.pop_back() else {
-                    return None;
-                };
+                let rightmost = self.remaining_runs.pop_back()?;
                 if rightmost.id.is_some() {
                     break rightmost;
                 }
             };
 
-            if first.len > fill_from.len {
-                // there are still empty blocks to be filled
-                self.remaining_runs.push_front(Run {
-                    id: None,
-                    len: first.len - fill_from.len,
-                });
-            } else if first.len < fill_from.len {
-                // there are leftover blocks from the fill-from run
-                self.remaining_runs.push_back(Run {
-                    id: fill_from.id,
-                    len: fill_from.len - first.len,
-                });
+            match first.len.cmp(&fill_from.len) {
+                Ordering::Greater => {
+                    // there are still empty blocks to be filled
+                    self.remaining_runs.push_front(Run {
+                        id: None,
+                        len: first.len - fill_from.len,
+                    });
+                }
+                Ordering::Less => {
+                    // there are leftover blocks from the fill-from run
+                    self.remaining_runs.push_back(Run {
+                        id: fill_from.id,
+                        len: fill_from.len - first.len,
+                    });
+                }
+                Ordering::Equal => (),
             }
 
             Some(Run {
@@ -94,7 +94,7 @@ fn p2_compact(mut runs: VecDeque<Run>) -> impl Iterator<Item = Run> {
 
     while let Some(run) = runs.pop_front() {
         if run.id.is_some() {
-            compacted.push(run)
+            compacted.push(run);
         } else {
             // find the rightmost file which can be moved, if one exists
             let mut tmp = Vec::new();
@@ -117,7 +117,7 @@ fn p2_compact(mut runs: VecDeque<Run>) -> impl Iterator<Item = Run> {
                     runs.push_front(Run {
                         id: None,
                         len: run.len - moved_len,
-                    })
+                    });
                 }
                 // leave empty space where the run was moved from
                 runs.push_back(Run {

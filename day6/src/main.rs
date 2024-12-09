@@ -1,4 +1,7 @@
-use std::{collections::HashSet, io::{stdin, BufRead}};
+use std::{
+    collections::HashSet,
+    io::{stdin, BufRead},
+};
 
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
@@ -26,19 +29,19 @@ struct Input {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Direction {
-    NORTH,
-    SOUTH,
-    EAST,
-    WEST
+    North,
+    South,
+    East,
+    West,
 }
 
 impl Direction {
-    fn rotate (self: Self) -> Self {
+    const fn rotate(self) -> Self {
         match self {
-            Direction::NORTH => Direction::EAST,
-            Direction::SOUTH => Direction::WEST,
-            Direction::EAST => Direction::SOUTH,
-            Direction::WEST => Direction::NORTH,
+            Self::North => Self::East,
+            Self::South => Self::West,
+            Self::East => Self::South,
+            Self::West => Self::North,
         }
     }
 }
@@ -51,33 +54,37 @@ fn parse_input(r: impl BufRead) -> Result<Input> {
 
     for (r, line) in r.lines().enumerate() {
         let line = line?;
-        rows = rows.max(r+1);
+        rows = rows.max(r + 1);
         for (c, chr) in line.char_indices() {
-            cols = cols.max(c+1);
+            cols = cols.max(c + 1);
             match chr {
                 '.' => continue,
                 '^' => init_pos = Some((r, c)),
                 '#' => obstructions.push((r, c)),
                 _ => bail!("Unexpected character '{}' in input", chr),
             }
-
         }
     }
 
-    let init_pos = init_pos.ok_or(anyhow!("Could not find initial position"))?;
+    let init_pos = init_pos.ok_or_else(|| anyhow!("Could not find initial position"))?;
 
-    Ok(Input { rows, cols, obstructions, init_pos })
+    Ok(Input {
+        rows,
+        cols,
+        obstructions,
+        init_pos,
+    })
 }
 
-fn next_pos(rows: usize, cols: usize, pos: Position, dir: Direction) -> Option<Position> {
+const fn next_pos(rows: usize, cols: usize, pos: Position, dir: Direction) -> Option<Position> {
     let (r, c) = pos;
 
     match dir {
-        Direction::NORTH if r > 0  => Some ((r - 1, c)),
-        Direction::SOUTH if r < rows - 1 => Some ((r + 1, c)),
-        Direction::WEST if c > 0 => Some ((r, c - 1)),
-        Direction::EAST if c < cols - 1 => Some ((r, c + 1)),
-        _ => None
+        Direction::North if r > 0 => Some((r - 1, c)),
+        Direction::South if r < rows - 1 => Some((r + 1, c)),
+        Direction::West if c > 0 => Some((r, c - 1)),
+        Direction::East if c < cols - 1 => Some((r, c + 1)),
+        _ => None,
     }
 }
 
@@ -87,10 +94,10 @@ fn main() -> Result<()> {
     let obstructions: HashSet<Position> = inp.obstructions.into_iter().collect();
 
     let mut pos = inp.init_pos;
-    let mut dir = Direction::NORTH;
+    let mut dir = Direction::North;
     match args.part {
         Part::P1 => {
-            let mut covered= HashSet::new();
+            let mut covered = HashSet::new();
             covered.insert(pos);
             while let Some(next) = next_pos(inp.rows, inp.cols, pos, dir) {
                 if obstructions.contains(&next) {
@@ -103,7 +110,7 @@ fn main() -> Result<()> {
             println!("{}", covered.len());
         }
         Part::P2 => {
-            let mut covered= HashSet::new();
+            let mut covered = HashSet::new();
             let mut possible_obstructions = HashSet::new();
             covered.insert(pos);
             let mut seen_collisions = HashSet::new();
@@ -145,7 +152,7 @@ fn main() -> Result<()> {
             }
 
             println!("{}", possible_obstructions.len());
-        },
+        }
     }
 
     Ok(())

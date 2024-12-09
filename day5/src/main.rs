@@ -8,9 +8,10 @@ use clap::{Parser, Subcommand};
 use nom::{
     character::complete::{char, digit1, line_ending, multispace1},
     combinator::map_res,
+    error::Error,
     multi::separated_list1,
     sequence::separated_pair,
-    IResult,
+    Err, IResult,
 };
 
 #[derive(Debug, Subcommand)]
@@ -55,7 +56,7 @@ fn input(input: &str) -> IResult<&str, Input> {
 
 fn parse_input(r: impl BufRead) -> Result<Input> {
     let s = read_to_string(r)?;
-    let (_, input) = input(&s).map_err(|e| e.to_owned())?;
+    let (_, input) = input(&s).map_err(Err::<Error<&str>>::to_owned)?;
 
     Ok(input)
 }
@@ -81,10 +82,10 @@ fn main() -> Result<()> {
                 let idx = corrected.iter().position(|p| others.contains(p)).unwrap();
                 corrected.insert(idx, page);
             } else {
-                corrected.push(page)
+                corrected.push(page);
             }
             if let Some(expected) = deps.get(&page) {
-                for &other in expected.iter() {
+                for &other in expected {
                     disallowed.entry(other).or_default().insert(page);
                 }
             }
@@ -99,10 +100,10 @@ fn main() -> Result<()> {
 
     match args.part {
         Part::P1 => {
-            println!("{}", correct_sum);
+            println!("{correct_sum}");
         }
         Part::P2 => {
-            println!("{}", incorrect_sum);
+            println!("{incorrect_sum}");
         }
     }
 

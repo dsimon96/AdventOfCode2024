@@ -7,8 +7,8 @@ use std::{
 
 type Report = Vec<u64>;
 
-fn parse_report(line: String) -> Result<Vec<u64>, ParseIntError> {
-    line.split_whitespace().map(|s| s.parse()).collect()
+fn parse_report(line: &str) -> Result<Vec<u64>, ParseIntError> {
+    line.split_whitespace().map(str::parse).collect()
 }
 
 fn parse_reports(inp: impl BufRead) -> Result<Vec<Report>> {
@@ -17,7 +17,7 @@ fn parse_reports(inp: impl BufRead) -> Result<Vec<Report>> {
     for line in inp.lines() {
         let line = line?;
 
-        results.push(parse_report(line)?)
+        results.push(parse_report(&line)?);
     }
 
     Ok(results)
@@ -28,7 +28,7 @@ fn is_safe(report: &Report) -> bool {
     for (&prev, &cur) in report.iter().tuple_windows() {
         orders.push(cur.cmp(&prev));
         let mag = cur.abs_diff(prev);
-        if mag < 1 || mag > 3 {
+        if !(1..=3).contains(&mag) {
             return false;
         }
     }

@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, HashSet}, io::{stdin, BufRead}};
+use std::{
+    collections::{HashMap, HashSet},
+    io::{stdin, BufRead},
+};
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
@@ -21,7 +24,7 @@ type Position = (i64, i64);
 struct Map {
     rows: usize,
     cols: usize,
-    antennae: Vec<(char, Position)>
+    antennae: Vec<(char, Position)>,
 }
 
 fn parse_map(r: impl BufRead) -> Result<Map> {
@@ -31,21 +34,30 @@ fn parse_map(r: impl BufRead) -> Result<Map> {
     for (r, line) in r.lines().enumerate() {
         rows += 1;
         let s = line?;
-        if cols.is_none() { cols = Some(s.len()); }
+        if cols.is_none() {
+            cols = Some(s.len());
+        }
 
         for (c, ch) in s.char_indices() {
-            if ch == '.' { continue }
-            else { antennae.push((ch, (r.try_into()?, c.try_into()?))) }
+            if ch == '.' {
+                continue;
+            }
+            antennae.push((ch, (r.try_into()?, c.try_into()?)));
         }
     }
-    let cols = cols.ok_or_else(|| anyhow!("Couldn't determine the width of the map. Is it empty?"))?;
-    Ok(Map { rows, cols, antennae })
+    let cols =
+        cols.ok_or_else(|| anyhow!("Couldn't determine the width of the map. Is it empty?"))?;
+    Ok(Map {
+        rows,
+        cols,
+        antennae,
+    })
 }
 
 fn by_freq(map: &Map) -> HashMap<char, Vec<Position>> {
     let mut res: HashMap<char, Vec<Position>> = HashMap::new();
 
-    for &(ch, pos) in map.antennae.iter() {
+    for &(ch, pos) in &map.antennae {
         res.entry(ch).or_default().push(pos);
     }
 
@@ -63,8 +75,12 @@ fn antinodes_p1(rows: usize, cols: usize, x: &Position, y: &Position) -> Vec<Pos
     let a2 = (ry + dr, cy + dc);
 
     let mut res = Vec::new();
-    if is_in_bounds(rows, cols, &a1) { res.push(a1) }
-    if is_in_bounds(rows, cols, &a2) { res.push(a2) }
+    if is_in_bounds(rows, cols, &a1) {
+        res.push(a1);
+    }
+    if is_in_bounds(rows, cols, &a2) {
+        res.push(a2);
+    }
     res
 }
 
@@ -101,7 +117,7 @@ fn antinodes_p2(rows: usize, cols: usize, x: &Position, y: &Position) -> Vec<Pos
 fn is_in_bounds(rows: usize, cols: usize, pos: &Position) -> bool {
     let &(r, c) = pos;
 
-    0 <= r && (r as usize) < rows && 0 <= c && (c as usize) < cols
+    0 <= r && usize::try_from(r).unwrap() < rows && 0 <= c && usize::try_from(c).unwrap() < cols
 }
 
 fn main() -> Result<()> {
@@ -119,7 +135,6 @@ fn main() -> Result<()> {
         for (x, y) in antennae.iter().tuple_combinations() {
             uniq.extend(antinodes(map.rows, map.cols, x, y));
         }
-
     }
 
     println!("{}", uniq.len());

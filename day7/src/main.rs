@@ -2,7 +2,14 @@ use std::io::stdin;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use nom::{bytes::complete::tag, character::complete::{digit1, space1}, combinator::map_res, multi::separated_list1, Finish, IResult};
+use nom::{
+    bytes::complete::tag,
+    character::complete::{digit1, space1},
+    combinator::map_res,
+    error::Error,
+    multi::separated_list1,
+    Err, Finish, IResult,
+};
 
 #[derive(Debug, Subcommand)]
 enum Part {
@@ -18,7 +25,7 @@ struct Args {
 
 struct Equation {
     test_value: u64,
-    operands: Vec<u64>
+    operands: Vec<u64>,
 }
 
 fn number(s: &str) -> IResult<&str, u64> {
@@ -30,13 +37,25 @@ fn equation(s: &str) -> IResult<&str, Equation> {
     let (s, _) = tag(": ")(s)?;
     let (s, operands) = separated_list1(space1, number)(s)?;
 
-    Ok((s, Equation { test_value, operands }))
+    Ok((
+        s,
+        Equation {
+            test_value,
+            operands,
+        },
+    ))
 }
 
 fn try_peel_digits(target: u64, operand: u64) -> Option<u64> {
     let target_string = target.to_string();
     let operand_string = operand.to_string();
-    target_string.strip_suffix(&operand_string).map(|s| if s.is_empty() { 0 } else { s.parse().unwrap() })
+    target_string.strip_suffix(&operand_string).map(|s| {
+        if s.is_empty() {
+            0
+        } else {
+            s.parse().unwrap()
+        }
+    })
 }
 
 fn can_make(target: u64, operands: &[u64], use_concatenation: bool) -> bool {
@@ -53,8 +72,8 @@ fn can_make(target: u64, operands: &[u64], use_concatenation: bool) -> bool {
                     }
                 }
             }
-            return can_make(target - last, remaining, use_concatenation);
-        },
+            can_make(target - last, remaining, use_concatenation)
+        }
         None => target == 0,
     }
 }
@@ -65,13 +84,15 @@ fn main() -> Result<()> {
     let use_concatenation = matches!(args.part, Part::P2);
     let mut sum = 0;
     for s in stdin().lines() {
-        let (_, eq) = equation(&s?).map_err(|e| e.to_owned()).finish()?;
+        let (_, eq) = equation(&s?)
+            .map_err(Err::<Error<&str>>::to_owned)
+            .finish()?;
         if can_make(eq.test_value, &eq.operands, use_concatenation) {
-            sum += eq.test_value
+            sum += eq.test_value;
         }
     }
 
-    println!("{}", sum);
+    println!("{sum}");
 
     Ok(())
 }
