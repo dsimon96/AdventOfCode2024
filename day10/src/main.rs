@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     io::{stdin, BufRead},
     ops::Index,
     rc::Rc,
@@ -43,7 +43,7 @@ impl Map {
             .filter(|idx| self[idx] == 0)
     }
 
-    fn adj(&self, &(r, c): &Idx) -> impl Iterator<Item = Idx> {
+    fn adj_indices(&self, &(r, c): &Idx) -> impl Iterator<Item = Idx> {
         let mut indices = Vec::new();
 
         if r > 0 {
@@ -99,20 +99,22 @@ fn parse_map(inp: impl BufRead) -> Result<Map> {
     })
 }
 
-type MemoTable = HashMap<Idx, Rc<HashSet<Idx>>>;
+type MemoTable = HashMap<Idx, Rc<HashMap<Idx, usize>>>;
 
-fn calculate_reachable(memo: &mut MemoTable, map: &Map, idx: Idx) -> Rc<HashSet<Idx>> {
+fn calculate_reachable(memo: &mut MemoTable, map: &Map, idx: Idx) -> Rc<HashMap<Idx, usize>> {
     if let Some(res) = memo.get(&idx) {
         return res.clone();
     }
 
     let height = map[&idx];
     let reachable = if height == 9 {
-        HashSet::from([idx])
+        HashMap::from([(idx, 1)])
     } else {
-        let mut reachable = HashSet::new();
-        for other in map.adj(&idx).filter(|other| map[other] == height + 1) {
-            reachable.extend(calculate_reachable(memo, map, other).iter());
+        let mut reachable = HashMap::new();
+        for other in map.adj_indices(&idx).filter(|other| map[other] == height + 1) {
+            for (&peak, &count) in calculate_reachable(memo, map, other).iter() {
+                *reachable.entry(peak).or_default() += count;
+            }
         }
 
         reachable
@@ -126,22 +128,19 @@ fn calculate_reachable(memo: &mut MemoTable, map: &Map, idx: Idx) -> Rc<HashSet<
 
 fn main() -> Result<()> {
     let args = Args::parse();
-
     let map = parse_map(stdin().lock())?;
 
-    match args.part {
-        Part::P1 => {
-            let mut memo = HashMap::new();
-
-            let total_score: usize = map
-                .trailheads()
-                .map(|idx| calculate_reachable(&mut memo, &map, idx).len())
-                .sum();
-
-            println!("{total_score}");
-        }
-        Part::P2 => todo!(),
-    }
+    let mut memo = HashMap::new();
+    let trailheads_reachability = map
+        .trailheads()
+        .map(|idx| calculate_reachable(&mut memo, &map, idx));
+    let total_score: usize = match args.part {
+        Part::P1 => trailheads_reachability.map(|m| m.len()).sum(),
+        Part::P2 => trailheads_reachability
+            .map(|m| m.values().sum::<usize>())
+            .sum(),
+    };
+    println!("{total_score}");
 
     Ok(())
 }
