@@ -111,7 +111,10 @@ fn calculate_reachable(memo: &mut MemoTable, map: &Map, idx: Idx) -> Rc<HashMap<
         HashMap::from([(idx, 1)])
     } else {
         let mut reachable = HashMap::new();
-        for other in map.adj_indices(&idx).filter(|other| map[other] == height + 1) {
+        for other in map
+            .adj_indices(&idx)
+            .filter(|other| map[other] == height + 1)
+        {
             for (&peak, &count) in calculate_reachable(memo, map, other).iter() {
                 *reachable.entry(peak).or_default() += count;
             }
