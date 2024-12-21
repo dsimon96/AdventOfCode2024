@@ -1,10 +1,8 @@
-use std::{
-    collections::{HashSet, VecDeque},
-    io::stdin,
-};
+use std::{collections::HashMap, io::stdin, iter::repeat_n};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use clap::{Parser, Subcommand};
+use itertools::Itertools;
 
 #[derive(Debug, Subcommand)]
 enum Part {
@@ -19,7 +17,7 @@ struct Args {
 }
 type Coords = (usize, usize);
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Button {
     Num(usize),
     A,
@@ -46,7 +44,25 @@ const NUMPAD: [[Option<Button>; NUMPAD_WIDTH]; NUMPAD_HEIGHT] = [
     ],
     [None, Some(Button::Num(0)), Some(Button::A)],
 ];
-const NUMPAD_A: Coords = (3, 2);
+
+fn numpad_coords(button: Button) -> Result<Coords> {
+    match button {
+        Button::Num(0) => Ok((3, 1)),
+        Button::Num(1) => Ok((2, 0)),
+        Button::Num(2) => Ok((2, 1)),
+        Button::Num(3) => Ok((2, 2)),
+        Button::Num(4) => Ok((1, 0)),
+        Button::Num(5) => Ok((1, 1)),
+        Button::Num(6) => Ok((1, 2)),
+        Button::Num(7) => Ok((0, 0)),
+        Button::Num(8) => Ok((0, 1)),
+        Button::Num(9) => Ok((0, 2)),
+        Button::Num(_) => {
+            bail!("Invalid input");
+        }
+        Button::A => Ok((3, 2)),
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 enum Direction {
@@ -72,11 +88,15 @@ const DIRKEYS: [[Option<Key>; DIRKEYS_WIDTH]; DIRKEYS_HEIGHT] = [
         Some(Key::Dir(Direction::Right)),
     ],
 ];
-const DIRKEY_A: Coords = (0, 2);
-
-type Cursors = [Coords; 3];
-
-const CURSORS_INIT: Cursors = [DIRKEY_A, DIRKEY_A, NUMPAD_A];
+const fn dirkey_coords(key: Key) -> Coords {
+    match key {
+        Key::Dir(Direction::Up) => (0, 1),
+        Key::Dir(Direction::Down) => (1, 1),
+        Key::Dir(Direction::Left) => (1, 0),
+        Key::Dir(Direction::Right) => (1, 2),
+        Key::A => (0, 2),
+    }
+}
 
 const fn try_move(&(r, c): &Coords, dir: Direction, height: usize, width: usize) -> Option<Coords> {
     match dir {
@@ -88,78 +108,115 @@ const fn try_move(&(r, c): &Coords, dir: Direction, height: usize, width: usize)
     }
 }
 
-fn do_input(cursors: &Cursors, mut input: Key) -> Option<(Cursors, Option<Button>)> {
-    let mut new_cursors = *cursors;
-    for i in 0..cursors.len() {
-        let (height, width) = if i == cursors.len() - 1 {
-            (NUMPAD_HEIGHT, NUMPAD_WIDTH)
-        } else {
-            (DIRKEYS_HEIGHT, DIRKEYS_WIDTH)
-        };
-        match input {
-            Key::Dir(dir) => match (i, try_move(&cursors[i], dir, height, width)) {
-                (i, Some((nr, nc)))
-                    if (i < cursors.len() - 1 && DIRKEYS[nr][nc].is_some()
-                        || i == cursors.len() - 1 && NUMPAD[nr][nc].is_some()) =>
-                {
-                    new_cursors[i] = (nr, nc);
-                    return Some((new_cursors, None));
-                }
-                _ => {
-                    return None;
-                }
-            },
-            Key::A => {
-                let (r, c) = cursors[i];
-                if i < cursors.len() - 1 {
-                    input = DIRKEYS[r][c].unwrap();
-                } else {
-                    return Some((new_cursors, NUMPAD[r][c]));
-                }
-            }
-        }
+const fn is_valid(robot_idx: usize, &(r, c): &Coords) -> bool {
+    if robot_idx == 0 {
+        NUMPAD[r][c].is_some()
+    } else {
+        DIRKEYS[r][c].is_some()
     }
-
-    unreachable!()
 }
 
-fn search(cursors: &Cursors, target: Button) -> Result<(Vec<Key>, Cursors)> {
-    let mut visited = HashSet::from([*cursors]);
-    let mut q: VecDeque<(Vec<Key>, Cursors)> = VecDeque::from([(Vec::new(), *cursors)]);
-
-    loop {
-        let (keys, cursors) = q.pop_front().context("Didn't find path")?;
-        for input in [
-            Key::Dir(Direction::Up),
-            Key::Dir(Direction::Down),
-            Key::Dir(Direction::Left),
-            Key::Dir(Direction::Right),
-            Key::A,
-        ] {
-            let Some((new_cursors, button)) = do_input(&cursors, input) else {
-                continue;
-            };
-            let mut new_keys = keys.clone();
-            new_keys.push(input);
-
-            match button {
-                Some(pressed) if pressed == target => return Ok((new_keys, new_cursors)),
-                None if visited.insert(new_cursors) => q.push_back((new_keys, new_cursors)),
-                _ => {}
-            }
-        }
+// cost to move robot robot_idx from 'from' to 'target' and then press it,
+// given that all robots up to robot_idx start on A
+fn search_rec(
+    memo: &mut HashMap<(usize, Coords, Coords), usize>,
+    num_robot_dirkey: usize,
+    robot_idx: usize,
+    from: &Coords,
+    target: &Coords,
+) -> Result<usize> {
+    if let Some(&res) = memo.get(&(robot_idx, *from, *target)) {
+        return Ok(res);
     }
+    if from == target {
+        return Ok(1);
+    }
+    let (height, width) = if robot_idx == 0 {
+        (NUMPAD_HEIGHT, NUMPAD_WIDTH)
+    } else {
+        (DIRKEYS_HEIGHT, DIRKEYS_WIDTH)
+    };
+
+    let (fr, fc) = from;
+    let (tr, tc) = target;
+
+    let mut moves = Vec::new();
+    if fr < tr {
+        moves.push((Direction::Down, tr - fr));
+    } else if fr > tr {
+        moves.push((Direction::Up, fr - tr));
+    }
+    if fc < tc {
+        moves.push((Direction::Right, tc - fc));
+    } else if fc > tc {
+        moves.push((Direction::Left, fc - tc));
+    }
+
+    let paths = moves
+        .iter()
+        .permutations(moves.len())
+        .filter(|permutation| {
+            let mut path = Vec::new();
+            for (dir, n) in permutation {
+                path.extend(repeat_n(dir, *n));
+            }
+
+            let mut coords = *from;
+            for dir in path {
+                coords = try_move(&coords, dir, height, width).unwrap();
+                if !is_valid(robot_idx, &coords) {
+                    return false;
+                }
+            }
+
+            true
+        });
+
+    let res = if robot_idx == num_robot_dirkey {
+        paths
+            .map(|path| path.iter().map(|(_, n)| *n).sum::<usize>() + 1)
+            .min()
+            .unwrap()
+    } else {
+        let mut path_lens = Vec::new();
+        for path in paths {
+            let mut path_len = 0;
+            let a = dirkey_coords(Key::A);
+            let mut coords = a;
+            for &(dir, n) in path {
+                let new_coords = dirkey_coords(Key::Dir(dir));
+                path_len +=
+                    search_rec(memo, num_robot_dirkey, robot_idx + 1, &coords, &new_coords)?;
+                path_len += n - 1;
+
+                coords = new_coords;
+            }
+            path_len += search_rec(memo, num_robot_dirkey, robot_idx + 1, &coords, &a)?;
+            path_lens.push(path_len);
+        }
+
+        path_lens.into_iter().min().unwrap()
+    };
+
+    memo.insert((robot_idx, *from, *target), res);
+    Ok(res)
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    let num_robot_dirkey = match args.part {
+        Part::P1 => 2,
+        Part::P2 => 25,
+    };
+
     let mut total = 0;
+    let mut memo = HashMap::new();
     for s in stdin().lines() {
         let s = s?;
         let numeric_part = s[..3].parse::<usize>()?;
-        let mut cursors = CURSORS_INIT;
-        let mut shortest_len = 0;
+        let mut path_len = 0;
+        let mut coords = numpad_coords(Button::A)?;
         for ch in s.chars() {
             let button = if let Some(num) = ch.to_digit(10) {
                 Button::Num(num.try_into()?)
@@ -169,18 +226,16 @@ fn main() -> Result<()> {
                 bail!("Invalid character in input");
             };
 
-            let (moves, new_cursors) = search(&cursors, button)?;
-            shortest_len += moves.len();
-            cursors = new_cursors;
+            let new_coords = numpad_coords(button)?;
+            let n = search_rec(&mut memo, num_robot_dirkey, 0, &coords, &new_coords)?;
+            path_len += n;
+            coords = new_coords;
         }
 
-        total += shortest_len * numeric_part;
+        total += path_len * numeric_part;
     }
 
-    match args.part {
-        Part::P1 => println!("{total}"),
-        Part::P2 => todo!(),
-    }
+    println!("{total}");
 
     Ok(())
 }
